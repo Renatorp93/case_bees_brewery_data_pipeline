@@ -34,7 +34,7 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
-      - ./data_lake:/opt/airflow/data_lake
+      - ./data_lake:/data_lake
     command: >
       bash -c "airflow db migrate &&
       airflow users create --username \"$${_AIRFLOW_WWW_USER_USERNAME}\" --password \"$${_AIRFLOW_WWW_USER_PASSWORD}\" --firstname \"$${_AIRFLOW_WWW_USER_FIRSTNAME}\" --lastname \"$${_AIRFLOW_WWW_USER_LASTNAME}\" --role \"$${_AIRFLOW_WWW_USER_ROLE}\" --email \"$${_AIRFLOW_WWW_USER_EMAIL}\" || true"
@@ -55,7 +55,7 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
-      - ./data_lake:/opt/airflow/data_lake
+      - ./data_lake:/data_lake
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8080:8080"
@@ -77,23 +77,26 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
-      - ./data_lake:/opt/airflow/data_lake
+      - ./data_lake:/data_lake
       - /var/run/docker.sock:/var/run/docker.sock
     command: scheduler
     networks: [brewery-net]
 
   spark-master:
     image: apache/spark:3.5.1
+    user: "0:0"
     networks: [brewery-net]
     command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
     ports:
       - "7077:7077"
       - "8081:8080"
     volumes:
-      - ./data_lake:/opt/data_lake
+      - ./data_lake:/data_lake
+    
 
   spark-worker:
     image: apache/spark:3.5.1
+    user: "0:0"
     networks: [brewery-net]
     depends_on:
       - spark-master
@@ -101,7 +104,39 @@ services:
     ports:
       - "8082:8081"
     volumes:
-      - ./data_lake:/opt/data_lake
+      - ./data_lake:/data_lake
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks: [brewery-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks: [brewery-net]
+    entrypoint: >
+      /bin/sh -lc "
+      mc alias set local http://minio:9000 minio minio123 &&
+      mc mb -p local/datalake || true &&
+      mc anonymous set download local/datalake || true &&
+      echo 'MinIO bucket datalake is ready.'"
+    restart: "no"
 
 networks:
   brewery-net:
@@ -110,3 +145,4 @@ networks:
 
 volumes:
   postgres_data:
+  minio_data:
