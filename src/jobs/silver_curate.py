@@ -10,7 +10,7 @@ from src.lib.spark import build_spark
 def main(run_id: str, bronze_prefix: str, silver_prefix: str) -> None:
     spark = build_spark("silver-curate")
 
-    bronze_path = f"{bronze_prefix}/run_id={run_id}/*.jsonl"
+    bronze_path = f"{bronze_prefix}/run_id={run_id}"
     df = spark.read.json(bronze_path)
 
     df = (

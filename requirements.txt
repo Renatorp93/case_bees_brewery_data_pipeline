@@ -3,3 +3,5 @@ requests
 pydantic
 pytest
 apache-airflow-providers-docker
+tenacity==8.2.3
+requests==2.32.3
