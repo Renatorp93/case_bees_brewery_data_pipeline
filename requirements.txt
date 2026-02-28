@@ -5,3 +5,4 @@ pytest
 apache-airflow-providers-docker
 tenacity==8.2.3
 requests==2.32.3
+boto3==1.34.162
