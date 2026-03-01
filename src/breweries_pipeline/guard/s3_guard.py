@@ -9,37 +9,32 @@ Design decision:
 This keeps responsibilities separated and deterministic.
 """
 
-from dataclasses import dataclass
-from typing import Tuple
-
 import os
+from dataclasses import dataclass
+
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from pyspark.sql import SparkSession
 
-
-# ------------------------------------------------------------------
-# Path helpers
-# ------------------------------------------------------------------
-
 @dataclass(frozen=True)
 class BronzeGuardPaths:
+    """Container for bronze output and manifest paths tied to one run."""
+
     out_dir: str
     manifest_path: str
 
 
 def bronze_paths(*, bronze_prefix: str, run_id: str) -> BronzeGuardPaths:
+    """Build bronze directory and manifest paths for a given run id."""
+
     out_dir = f"{bronze_prefix.rstrip('/')}/run_id={run_id}"
     manifest_path = f"{out_dir}/_metadata.json"
     return BronzeGuardPaths(out_dir=out_dir, manifest_path=manifest_path)
 
-
-# ------------------------------------------------------------------
-# Spark (Hadoop FS) helpers
-# ------------------------------------------------------------------
-
 def _fs_and_path(spark: SparkSession, uri: str):
+    """Return Hadoop FileSystem and Path handles for a URI."""
+
     jvm = spark._jvm
     hconf = spark._jsc.hadoopConfiguration()
     p = jvm.org.apache.hadoop.fs.Path(uri)
@@ -48,11 +43,15 @@ def _fs_and_path(spark: SparkSession, uri: str):
 
 
 def exists(spark: SparkSession, uri: str) -> bool:
+    """Check whether a path exists in the configured Hadoop filesystem."""
+
     fs, p = _fs_and_path(spark, uri)
     return bool(fs.exists(p))
 
 
 def delete(spark: SparkSession, uri: str, *, recursive: bool = True) -> None:
+    """Delete a path from the configured Hadoop filesystem."""
+
     fs, p = _fs_and_path(spark, uri)
     ok = fs.delete(p, recursive)
     if not ok:
@@ -60,13 +59,17 @@ def delete(spark: SparkSession, uri: str, *, recursive: bool = True) -> None:
 
 
 def write_text(spark: SparkSession, uri: str, content: str) -> None:
+    """Write UTF-8 text content to a filesystem path, overwriting if needed."""
+
     fs, p = _fs_and_path(spark, uri)
-    out = fs.create(p, True)  # overwrite=True
+    out = fs.create(p, True)
     out.write(bytearray(content.encode("utf-8")))
     out.close()
 
 
 def rename(spark: SparkSession, src: str, dst: str) -> None:
+    """Rename or move a filesystem object between two URIs."""
+
     fs_src, src_p = _fs_and_path(spark, src)
     _, dst_p = _fs_and_path(spark, dst)
 
@@ -74,12 +77,9 @@ def rename(spark: SparkSession, src: str, dst: str) -> None:
     if not ok:
         raise RuntimeError(f"Failed to rename {src} -> {dst}")
 
-
-# ------------------------------------------------------------------
-# Airflow Guard (boto3)
-# ------------------------------------------------------------------
-
 def _s3_client():
+    """Build a boto3 S3 client using environment-backed MinIO credentials."""
+
     return boto3.client(
         "s3",
         endpoint_url=os.getenv("S3_ENDPOINT", "http://minio:9000"),

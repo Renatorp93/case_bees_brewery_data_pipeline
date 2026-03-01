@@ -10,6 +10,8 @@ from breweries_pipeline.utils.time import utc_run_id
 
 
 def transform_silver(df: DataFrame, run_id: str) -> DataFrame:
+    """Normalize selected fields and attach ingestion metadata columns."""
+
     return (
         df
         .withColumn("ingestion_run_id", F.lit(run_id))
@@ -24,6 +26,8 @@ def transform_silver(df: DataFrame, run_id: str) -> DataFrame:
 
 
 def main(run_id: str, bronze_prefix: str, silver_prefix: str) -> None:
+    """Read bronze JSON data for a run and write curated silver parquet output."""
+
     spark = build_spark("silver-curate")
 
     bronze_path = f"{bronze_prefix}/run_id={run_id}"

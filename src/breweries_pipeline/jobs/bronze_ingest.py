@@ -29,6 +29,8 @@ WriteMode = Literal["skip", "overwrite", "fail"]
 
 @dataclass(frozen=True)
 class BronzeManifest:
+    """Metadata emitted after a successful bronze ingestion run."""
+
     run_id: str
     fetched_rows: int
     pages_fetched: int
@@ -40,6 +42,8 @@ class BronzeManifest:
 
 
 def _is_retryable(exc: Exception) -> bool:
+    """Return True when an HTTP exception is considered transient."""
+
     if isinstance(exc, (requests.Timeout, requests.ConnectionError)):
         return True
 
@@ -57,6 +61,8 @@ def _is_retryable(exc: Exception) -> bool:
     before_sleep=before_sleep_log(logger, logging.WARNING),
 )
 def fetch_page(session: requests.Session, page: int, per_page: int, timeout_s: int, api_url: str = API_URL):
+    """Fetch one API page and raise for HTTP status >= 400."""
+
     r = session.get(api_url, params={"page": page, "per_page": per_page}, timeout=timeout_s)
     if r.status_code >= 400:
         r.raise_for_status()
@@ -64,6 +70,8 @@ def fetch_page(session: requests.Session, page: int, per_page: int, timeout_s: i
 
 
 def _num_slices(n_lines: int) -> int:
+    """Choose a bounded number of Spark partitions for text output."""
+
     return min(8, max(1, n_lines // 500))
 
 
@@ -75,6 +83,8 @@ def main(
     timeout_s: int,
     write_mode: WriteMode,
 ) -> None:
+    """Ingest breweries from the API and persist bronze data plus manifest."""
+
     started = datetime.now(timezone.utc)
     spark = build_spark("bronze-ingest")
 
@@ -92,7 +102,6 @@ def main(
             paths.manifest_path,
         )
 
-        # Commit marker is the manifest. If it exists, the run is considered successful.
         if manifest_exists:
             if write_mode == "skip":
                 logger.info("[bronze] manifest exists -> SKIP (success)")
@@ -101,9 +110,8 @@ def main(
                 raise RuntimeError(f"[bronze] manifest exists and write_mode=fail. manifest={paths.manifest_path}")
             logger.info("[bronze] manifest exists -> OVERWRITE: deleting %s", paths.out_dir)
             delete(spark, paths.out_dir, recursive=True)
-            out_dir_exists = False  # keep state consistent
+            out_dir_exists = False
 
-        # If out_dir exists without manifest, it's an incomplete/failed prior run.
         if out_dir_exists and not manifest_exists:
             if write_mode == "fail":
                 raise RuntimeError(
@@ -140,7 +148,6 @@ def main(
             paths.out_dir,
         )
 
-        # Will fail if out_dir exists; that is why we handled write_mode and cleanup above.
         spark.sparkContext.parallelize(lines, numSlices=_num_slices(len(lines))).saveAsTextFile(paths.out_dir)
 
         finished = datetime.now(timezone.utc)
@@ -155,7 +162,6 @@ def main(
             api_url=API_URL,
         )
 
-        # Write manifest last as the commit marker.
         write_text(
             spark,
             paths.manifest_path,

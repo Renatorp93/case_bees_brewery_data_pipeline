@@ -7,11 +7,8 @@ from breweries_pipeline.lib.spark import build_spark
 
 
 def aggregate_gold(df: DataFrame) -> DataFrame:
-    """
-    Gold: aggregates breweries count by (country, state_province, city, brewery_type).
-    Output schema:
-      country, state_province, city, brewery_type, brewery_count
-    """
+    """Aggregate brewery counts by location and brewery type."""
+
     return (
         df.groupBy("country", "state_province", "city", "brewery_type")
         .agg(F.countDistinct("id").alias("brewery_count"))
@@ -20,6 +17,8 @@ def aggregate_gold(df: DataFrame) -> DataFrame:
 
 
 def main(run_id: str, silver_prefix: str, gold_prefix: str) -> None:
+    """Read silver parquet, compute gold aggregates, and persist run-scoped output."""
+
     spark = build_spark("gold-aggregate")
 
     silver_path = f"{silver_prefix}/breweries"
