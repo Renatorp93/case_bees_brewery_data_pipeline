@@ -7,10 +7,8 @@ ENV HADOOP_PROFILE=hadoop3
 ENV SPARK_HOME=/opt/spark
 ENV PATH="${SPARK_HOME}/bin:${PATH}"
 
-RUN python -m pip install --upgrade pip
-
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openjdk-17-jdk curl ca-certificates procps && \
+    apt-get install -y --no-install-recommends openjdk-17-jdk curl ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

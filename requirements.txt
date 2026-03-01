@@ -1,7 +1,5 @@
-pydantic
+pyspark==3.5.1
 pytest
-apache-airflow-providers-docker
 tenacity==8.5.0
 requests==2.32.3
 boto3
-requests-mock
