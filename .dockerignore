@@ -1,0 +1,9 @@
+logs/
+data_lake/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+.vscode/
+.git/
+dist/
+*.log
