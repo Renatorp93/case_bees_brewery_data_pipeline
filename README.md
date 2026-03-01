@@ -4,10 +4,10 @@
 
 Pipeline de dados em arquitetura Medallion:
 
-- `Bronze`: ingestao da API Open Brewery DB para `s3a://datalake/bronze/breweries`
+- `Bronze`: ingestão da API Open Brewery DB para `s3a://datalake/bronze/breweries`
 - `Silver`: curadoria e particionamento em parquet
-- `Gold`: agregacoes por localizacao e tipo de cervejaria
-- Orquestracao com Airflow, processamento com Spark e armazenamento em MinIO
+- `Gold`: agregações por localização e tipo de cervejaria
+- Orquestração com Airflow, processamento com Spark e armazenamento em MinIO
 
 ### Stack
 
@@ -17,16 +17,16 @@ Pipeline de dados em arquitetura Medallion:
 - Postgres (metadados do Airflow)
 - Pytest
 
-### Pre-requisitos
+### Pré-requisitos
 
 - Docker + Docker Compose
 - Porta `8080` livre (Airflow UI)
 - Portas `9000` e `9001` livres (MinIO)
 - Portas `7077`, `8081`, `8082` livres (Spark)
 
-### Execucao (clone e roda)
+### Execução (clonar e executar)
 
-1. Clonar o repositorio
+1. Clonar o repositório
 ```bash
 git clone https://github.com/Renatorp93/case_bees_brewery_data_pipeline.git
 cd case_bees_brewery_data_pipeline
@@ -47,11 +47,11 @@ docker compose up -d --build
 ```
 
 4. Acessar interfaces
-- Airflow UI: `http://localhost:8080` (usuario/senha definidos no `.env`)
-- MinIO Console: `http://localhost:9001` (usuario/senha definidos no `.env`)
+- Airflow UI: `http://localhost:8080` (usuário/senha definidos no `.env`)
+- MinIO Console: `http://localhost:9001` (usuário/senha definidos no `.env`)
 - Spark Master UI: `http://localhost:8081`
 
-5. Disparar uma execucao manual da DAG
+5. Disparar uma execução manual da DAG
 ```bash
 docker compose exec airflow-scheduler \
   airflow dags trigger breweries_medallion_pipeline
@@ -69,19 +69,35 @@ docker compose exec airflow-scheduler \
   airflow tasks states-for-dag-run breweries_medallion_pipeline <dag_run_id>
 ```
 
+### Validação via UI (Airflow + MinIO)
+
+1. No Airflow UI, abra a DAG `breweries_medallion_pipeline`.
+2. Execute um `Trigger DAG` manual.
+3. Em `Grid` ou `Graph`, valide as tasks em `success`:
+   - `bronze_ingest`
+   - `guard_bronze_manifest`
+   - `silver_curate`
+   - `gold_aggregate`
+4. No MinIO UI, abra o bucket `datalake`.
+5. Valide a criação de artefatos em:
+   - `bronze/breweries/`
+   - `silver/breweries/`
+   - `gold/breweries/`
+6. Opcional: abrir `bronze/.../_metadata.json` para checar `run_id`, `fetched_rows` e timestamps.
+
 ### Testes
 
 ```bash
 docker compose run --rm tests
 ```
 
-### Idempotencia e rerun
+### Idempotência e rerun
 
 - `bronze_ingest` aceita `write_mode`:
-  - `skip` (padrao): se o manifesto do `run_id` existe, finaliza em sucesso
-  - `overwrite`: remove a saida anterior e reprocessa
-  - `fail`: falha se existir saida/manifesto
-- Isso permite rerun seguro sem quebrar por colisao de `run_id`.
+  - `skip` (padrão): se o manifesto do `run_id` existe, finaliza em sucesso
+  - `overwrite`: remove a saída anterior e reprocessa
+  - `fail`: falha se existir saída/manifesto
+- Isso permite rerun seguro sem quebrar por colisão de `run_id`.
 
 ## [EN]
 
@@ -151,6 +167,22 @@ docker compose exec airflow-scheduler \
 docker compose exec airflow-scheduler \
   airflow tasks states-for-dag-run breweries_medallion_pipeline <dag_run_id>
 ```
+
+### Validation via UI (Airflow + MinIO)
+
+1. In Airflow UI, open DAG `breweries_medallion_pipeline`.
+2. Run a manual `Trigger DAG`.
+3. In `Grid` or `Graph`, validate all tasks as `success`:
+   - `bronze_ingest`
+   - `guard_bronze_manifest`
+   - `silver_curate`
+   - `gold_aggregate`
+4. In MinIO UI, open bucket `datalake`.
+5. Validate artifacts created under:
+   - `bronze/breweries/`
+   - `silver/breweries/`
+   - `gold/breweries/`
+6. Optional: open `bronze/.../_metadata.json` and check `run_id`, `fetched_rows`, and timestamps.
 
 ### Tests
 
