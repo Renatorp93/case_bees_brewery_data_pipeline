@@ -38,12 +38,12 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-      _AIRFLOW_WWW_USER_USERNAME: airflow
-      _AIRFLOW_WWW_USER_PASSWORD: airflow
-      _AIRFLOW_WWW_USER_FIRSTNAME: Airflow
-      _AIRFLOW_WWW_USER_LASTNAME: Admin
-      _AIRFLOW_WWW_USER_EMAIL: airflow@example.com
-      _AIRFLOW_WWW_USER_ROLE: Admin
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-airflow}
+      _AIRFLOW_WWW_USER_FIRSTNAME: ${AIRFLOW_ADMIN_FIRSTNAME:-Airflow}
+      _AIRFLOW_WWW_USER_LASTNAME: ${AIRFLOW_ADMIN_LASTNAME:-Admin}
+      _AIRFLOW_WWW_USER_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-airflow@example.com}
+      _AIRFLOW_WWW_USER_ROLE: ${AIRFLOW_ADMIN_ROLE:-Admin}
       PYTHONPATH: /opt/airflow/src
     volumes:
       - ./dags:/opt/airflow/dags
@@ -75,10 +75,10 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__WEBSERVER__WORKERS: "1"
       AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: "300"
-      AIRFLOW__WEBSERVER__SECRET_KEY: "change-me-to-a-long-static-secret-key"
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-change-me-to-a-long-static-secret-key}
       S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: minio
-      S3_SECRET_KEY: minio123
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
       S3_BUCKET: datalake
       BRONZE_PREFIX: bronze/breweries
       SILVER_PREFIX: silver/breweries
@@ -115,10 +115,10 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-      AIRFLOW__WEBSERVER__SECRET_KEY: "change-me-to-a-long-static-secret-key"
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-change-me-to-a-long-static-secret-key}
       S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: minio
-      S3_SECRET_KEY: minio123
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
       S3_BUCKET: datalake
       BRONZE_PREFIX: bronze/breweries
       SILVER_PREFIX: silver/breweries
@@ -167,8 +167,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -186,11 +186,14 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
     networks: [brewery-net]
     entrypoint: >
       /bin/sh -lc "
       set -e
-      mc alias set local http://minio:9000 minio minio123
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}
       mc mb -p local/datalake || true
       mc anonymous set download local/datalake || true
       echo 'MinIO bucket datalake is ready.'"

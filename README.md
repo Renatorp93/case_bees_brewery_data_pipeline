@@ -32,29 +32,38 @@ git clone https://github.com/Renatorp93/case_bees_brewery_data_pipeline.git
 cd case_bees_brewery_data_pipeline
 ```
 
-2. Subir o ambiente completo
+2. Criar arquivo de ambiente local
+```bash
+cp .env.example .env
+```
+No Windows PowerShell:
+```powershell
+Copy-Item .env.example .env
+```
+
+3. Subir o ambiente completo
 ```bash
 docker compose up -d --build
 ```
 
-3. Acessar interfaces
-- Airflow UI: `http://localhost:8080` (`airflow` / `airflow`)
-- MinIO Console: `http://localhost:9001` (`minio` / `minio123`)
+4. Acessar interfaces
+- Airflow UI: `http://localhost:8080` (usuario/senha definidos no `.env`)
+- MinIO Console: `http://localhost:9001` (usuario/senha definidos no `.env`)
 - Spark Master UI: `http://localhost:8081`
 
-4. Disparar uma execucao manual da DAG
+5. Disparar uma execucao manual da DAG
 ```bash
 docker compose exec airflow-scheduler \
   airflow dags trigger breweries_medallion_pipeline
 ```
 
-5. Listar runs e pegar o `dag_run_id`
+6. Listar runs e pegar o `dag_run_id`
 ```bash
 docker compose exec airflow-scheduler \
   airflow dags list-runs -d breweries_medallion_pipeline --no-backfill
 ```
 
-6. Acompanhar status das tasks
+7. Acompanhar status das tasks
 ```bash
 docker compose exec airflow-scheduler \
   airflow tasks states-for-dag-run breweries_medallion_pipeline <dag_run_id>
@@ -106,29 +115,38 @@ git clone https://github.com/Renatorp93/case_bees_brewery_data_pipeline.git
 cd case_bees_brewery_data_pipeline
 ```
 
-2. Start the full stack
+2. Create local environment file
+```bash
+cp .env.example .env
+```
+On Windows PowerShell:
+```powershell
+Copy-Item .env.example .env
+```
+
+3. Start the full stack
 ```bash
 docker compose up -d --build
 ```
 
-3. Open UIs
-- Airflow UI: `http://localhost:8080` (`airflow` / `airflow`)
-- MinIO Console: `http://localhost:9001` (`minio` / `minio123`)
+4. Open UIs
+- Airflow UI: `http://localhost:8080` (credentials defined in `.env`)
+- MinIO Console: `http://localhost:9001` (credentials defined in `.env`)
 - Spark Master UI: `http://localhost:8081`
 
-4. Trigger a manual DAG run
+5. Trigger a manual DAG run
 ```bash
 docker compose exec airflow-scheduler \
   airflow dags trigger breweries_medallion_pipeline
 ```
 
-5. List runs and get `dag_run_id`
+6. List runs and get `dag_run_id`
 ```bash
 docker compose exec airflow-scheduler \
   airflow dags list-runs -d breweries_medallion_pipeline --no-backfill
 ```
 
-6. Track task status
+7. Track task status
 ```bash
 docker compose exec airflow-scheduler \
   airflow tasks states-for-dag-run breweries_medallion_pipeline <dag_run_id>
