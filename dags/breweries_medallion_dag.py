@@ -3,14 +3,13 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 
-import boto3
-from botocore.config import Config
-from botocore.exceptions import ClientError
-
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 
+from breweries_pipeline.guard.s3_guard import guard_bronze_metadata
+
+JOBS_PATH = "/opt/airflow/src/breweries_pipeline/jobs"
 
 # -----------------------
 # Env / Defaults
@@ -20,51 +19,16 @@ S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "minio")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "minio123")
 S3_BUCKET = os.getenv("S3_BUCKET", "datalake")
 
-# Prefixes in the bucket
 BRONZE_PREFIX = os.getenv("BRONZE_PREFIX", "bronze/breweries")
 SILVER_PREFIX = os.getenv("SILVER_PREFIX", "silver/breweries")
 GOLD_PREFIX = os.getenv("GOLD_PREFIX", "gold/breweries")
 
-# Spark
 SPARK_MASTER = os.getenv("SPARK_MASTER", "spark://spark-master:7077")
 
-# S3A access (Spark <-> MinIO)
 SPARK_PACKAGES = (
     "org.apache.hadoop:hadoop-aws:3.3.4,"
     "com.amazonaws:aws-java-sdk-bundle:1.12.262"
 )
-
-
-def _s3_client():
-    return boto3.client(
-        "s3",
-        endpoint_url=S3_ENDPOINT,
-        aws_access_key_id=S3_ACCESS_KEY,
-        aws_secret_access_key=S3_SECRET_KEY,
-        config=Config(signature_version="s3v4"),
-        region_name="us-east-1",
-    )
-
-
-def guard_bronze_metadata(**context) -> None:
-    """
-    Fail fast guard:
-    - ensures bronze wrote the manifest _metadata.json
-    - this avoids running silver/gold on incomplete or failed bronze runs
-    """
-    run_id = context["templates_dict"]["run_id"]
-    key = f"{BRONZE_PREFIX}/run_id={run_id}/_metadata.json"
-    s3 = _s3_client()
-
-    try:
-        s3.head_object(Bucket=S3_BUCKET, Key=key)
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        raise RuntimeError(
-            f"Bronze guard failed: manifest not found. "
-            f"bucket={S3_BUCKET} key={key} error_code={code}"
-        ) from e
-
 
 default_args = {
     "owner": "data-platform",
@@ -72,7 +36,16 @@ default_args = {
     "retry_delay": timedelta(minutes=2),
     "retry_exponential_backoff": True,
     "max_retry_delay": timedelta(minutes=15),
-    "execution_timeout":timedelta(minutes=15),
+    "execution_timeout": timedelta(minutes=20),
+}
+
+SPARK_ENV = {
+    "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY,
+    "AWS_SECRET_ACCESS_KEY": S3_SECRET_KEY,
+    "S3_ENDPOINT": S3_ENDPOINT,
+    "PYTHONPATH": "/opt/airflow/src",
+    "PYSPARK_PYTHON": "/usr/local/bin/python",
+    "PYSPARK_DRIVER_PYTHON": "/usr/local/bin/python",
 }
 
 with DAG(
@@ -88,75 +61,81 @@ with DAG(
     max_active_runs=1,
     default_args=default_args,
     tags=["case", "brewery", "medallion"],
+    params={
+        # For manual triggers:
+        # - run_id: override the computed run_id
+        # - write_mode: skip | overwrite | fail
+        "run_id": None,
+        "write_mode": "skip",
+        "per_page": 200,
+        "max_pages": 10,
+        "timeout_s": 30,
+    },
 ) as dag:
+    # Stable daily run_id (same for reruns of the same logical interval)
+    run_id = "{{ params.run_id or data_interval_end.in_timezone('UTC').strftime('%Y%m%dT%H%M%S') }}"
 
-
-    run_id = "{{ data_interval_end.in_timezone('UTC').strftime('%Y%m%dT%H%M%S') }}"
+    write_mode = "{{ params.write_mode }}"
+    per_page = "{{ params.per_page }}"
+    max_pages = "{{ params.max_pages }}"
+    timeout_s = "{{ params.timeout_s }}"
 
     bronze = BashOperator(
         task_id="bronze_ingest",
         bash_command=(
-            "spark-submit "
+            "/opt/spark/bin/spark-submit "
             f"--master {SPARK_MASTER} "
             "--deploy-mode client "
             f"--packages {SPARK_PACKAGES} "
-            "/opt/airflow/src/jobs/bronze_ingest.py "
-            f"--run-id {run_id} "
-            "--per-page 200 "
-            "--max-pages 10 "
+            f"{JOBS_PATH}/bronze_ingest.py "
+            f"--run-id '{run_id}' "
+            f"--per-page {per_page} "
+            f"--max-pages {max_pages} "
             f"--out-prefix s3a://{S3_BUCKET}/{BRONZE_PREFIX} "
-            "--timeout-s 30 "
-            "--skip-if-exists "
+            f"--timeout-s {timeout_s} "
+            f"--write-mode {write_mode} "
         ),
-        env={
-            "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY,
-            "AWS_SECRET_ACCESS_KEY": S3_SECRET_KEY,
-            "S3_ENDPOINT": S3_ENDPOINT,
-        },
+        env=SPARK_ENV,
     )
 
     guard = PythonOperator(
         task_id="guard_bronze_manifest",
         python_callable=guard_bronze_metadata,
-        templates_dict={"run_id": run_id},
+        op_kwargs={
+            "bucket": S3_BUCKET,
+            "bronze_prefix": BRONZE_PREFIX,
+            "run_id": run_id,
+        },
     )
 
     silver = BashOperator(
         task_id="silver_curate",
         bash_command=(
-            "spark-submit "
+            "/opt/spark/bin/spark-submit "
             f"--master {SPARK_MASTER} "
             "--deploy-mode client "
             f"--packages {SPARK_PACKAGES} "
-            "/opt/airflow/src/jobs/silver_curate.py "
-            f"--run-id {run_id} "
+            f"{JOBS_PATH}/silver_curate.py "
+            f"--run-id '{run_id}' "
             f"--bronze-prefix s3a://{S3_BUCKET}/{BRONZE_PREFIX} "
             f"--silver-prefix s3a://{S3_BUCKET}/{SILVER_PREFIX} "
         ),
-        env={
-            "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY,
-            "AWS_SECRET_ACCESS_KEY": S3_SECRET_KEY,
-            "S3_ENDPOINT": S3_ENDPOINT,
-        },
+        env=SPARK_ENV,
     )
 
     gold = BashOperator(
         task_id="gold_aggregate",
         bash_command=(
-            "spark-submit "
+            "/opt/spark/bin/spark-submit "
             f"--master {SPARK_MASTER} "
             "--deploy-mode client "
             f"--packages {SPARK_PACKAGES} "
-            "/opt/airflow/src/jobs/gold_aggregate.py "
-            f"--run-id {run_id} "
+            f"{JOBS_PATH}/gold_aggregate.py "
+            f"--run-id '{run_id}' "
             f"--silver-prefix s3a://{S3_BUCKET}/{SILVER_PREFIX} "
             f"--gold-prefix s3a://{S3_BUCKET}/{GOLD_PREFIX} "
         ),
-        env={
-            "AWS_ACCESS_KEY_ID": S3_ACCESS_KEY,
-            "AWS_SECRET_ACCESS_KEY": S3_SECRET_KEY,
-            "S3_ENDPOINT": S3_ENDPOINT,
-        },
+        env=SPARK_ENV,
     )
 
     bronze >> guard >> silver >> gold
