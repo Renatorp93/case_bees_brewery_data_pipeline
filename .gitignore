@@ -1,0 +1,48 @@
+############################
+# Data Lake
+############################
+data_lake/
+*.parquet
+*.jsonl
+*.csv
+*.snappy.parquet
+_SUCCESS
+_temporary
+
+############################
+# Python
+############################
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+
+############################
+# Airflow
+############################
+logs/
+airflow.db
+airflow-webserver.pid
+
+############################
+# Spark
+############################
+metastore_db/
+spark-warehouse/
+
+############################
+# Docker
+############################
+*.log
+.env
+
+############################
+# OS / IDE
+############################
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
