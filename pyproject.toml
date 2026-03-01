@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "breweries-pipeline"
+version = "0.1.0"
+description = "Airflow + Spark medallion pipeline (Open Brewery DB -> Bronze/Silver/Gold)"
+requires-python = ">=3.8"
+dependencies = []
