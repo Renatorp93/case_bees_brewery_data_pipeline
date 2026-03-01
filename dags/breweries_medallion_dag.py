@@ -44,7 +44,7 @@ SPARK_ENV = {
     "AWS_SECRET_ACCESS_KEY": S3_SECRET_KEY,
     "S3_ENDPOINT": S3_ENDPOINT,
     "PYTHONPATH": "/opt/airflow/src",
-    "PYSPARK_PYTHON": "/usr/local/bin/python",
+    "PYSPARK_PYTHON": "python3",
     "PYSPARK_DRIVER_PYTHON": "/usr/local/bin/python",
 }
 
@@ -72,8 +72,12 @@ with DAG(
         "timeout_s": 30,
     },
 ) as dag:
-    # Stable daily run_id (same for reruns of the same logical interval)
-    run_id = "{{ params.run_id or data_interval_end.in_timezone('UTC').strftime('%Y%m%dT%H%M%S') }}"
+    # Manual runs should be unique by trigger time; scheduled runs stay stable by interval end.
+    run_id = (
+        "{{ params.run_id or "
+        "(ts_nodash if dag_run and dag_run.run_type == 'manual' "
+        "else data_interval_end.in_timezone('UTC').strftime('%Y%m%dT%H%M%S')) }}"
+    )
 
     write_mode = "{{ params.write_mode }}"
     per_page = "{{ params.per_page }}"

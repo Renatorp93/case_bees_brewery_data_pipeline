@@ -104,6 +104,8 @@ def guard_bronze_metadata(*, bucket: str, bronze_prefix: str, run_id: str) -> No
     try:
         s3.head_object(Bucket=bucket, Key=key)
     except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "unknown")
         raise RuntimeError(
-            f"Bronze guard failed: manifest not found. bucket={bucket} key={key}"
+            f"Bronze guard failed: manifest not found. "
+            f"bucket={bucket} key={key} error_code={error_code}"
         ) from e
