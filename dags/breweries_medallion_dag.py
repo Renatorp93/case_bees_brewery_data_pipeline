@@ -8,6 +8,12 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 
 from breweries_pipeline.guard.s3_guard import guard_bronze_metadata
+from breweries_pipeline.monitoring.alerts import (
+    on_dag_failure,
+    on_dag_success,
+    on_task_failure,
+    on_task_retry,
+)
 
 JOBS_PATH = "/opt/airflow/src/breweries_pipeline/jobs"
 
@@ -22,6 +28,7 @@ S3_BUCKET = os.getenv("S3_BUCKET", "datalake")
 BRONZE_PREFIX = os.getenv("BRONZE_PREFIX", "bronze/breweries")
 SILVER_PREFIX = os.getenv("SILVER_PREFIX", "silver/breweries")
 GOLD_PREFIX = os.getenv("GOLD_PREFIX", "gold/breweries")
+QUALITY_PREFIX = os.getenv("QUALITY_PREFIX", "monitoring/data_quality")
 
 SPARK_MASTER = os.getenv("SPARK_MASTER", "spark://spark-master:7077")
 
@@ -37,6 +44,8 @@ default_args = {
     "retry_exponential_backoff": True,
     "max_retry_delay": timedelta(minutes=15),
     "execution_timeout": timedelta(minutes=20),
+    "on_failure_callback": on_task_failure,
+    "on_retry_callback": on_task_retry,
 }
 
 SPARK_ENV = {
@@ -60,6 +69,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     default_args=default_args,
+    on_success_callback=on_dag_success,
+    on_failure_callback=on_dag_failure,
     tags=["case", "brewery", "medallion"],
     params={
         # For manual triggers:
@@ -70,6 +81,7 @@ with DAG(
         "per_page": 200,
         "max_pages": 10,
         "timeout_s": 30,
+        "dq_min_rows": 1,
     },
 ) as dag:
     # Manual runs should be unique by trigger time; scheduled runs stay stable by interval end.
@@ -83,6 +95,7 @@ with DAG(
     per_page = "{{ params.per_page }}"
     max_pages = "{{ params.max_pages }}"
     timeout_s = "{{ params.timeout_s }}"
+    dq_min_rows = "{{ params.dq_min_rows }}"
 
     bronze = BashOperator(
         task_id="bronze_ingest",
@@ -127,6 +140,22 @@ with DAG(
         env=SPARK_ENV,
     )
 
+    dq_silver = BashOperator(
+        task_id="dq_silver",
+        bash_command=(
+            "/opt/spark/bin/spark-submit "
+            f"--master {SPARK_MASTER} "
+            "--deploy-mode client "
+            f"--packages {SPARK_PACKAGES} "
+            f"{JOBS_PATH}/data_quality.py "
+            f"--run-id '{run_id}' "
+            f"--silver-prefix s3a://{S3_BUCKET}/{SILVER_PREFIX} "
+            f"--quality-prefix s3a://{S3_BUCKET}/{QUALITY_PREFIX} "
+            f"--min-rows {dq_min_rows} "
+        ),
+        env=SPARK_ENV,
+    )
+
     gold = BashOperator(
         task_id="gold_aggregate",
         bash_command=(
@@ -142,4 +171,4 @@ with DAG(
         env=SPARK_ENV,
     )
 
-    bronze >> guard >> silver >> gold
+    bronze >> guard >> silver >> dq_silver >> gold
