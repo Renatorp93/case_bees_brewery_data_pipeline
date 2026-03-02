@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,9 @@ except Exception as exc:  # pragma: no cover - environment-dependent guard
 
 
 def _load_dag_module():
+    os.environ.setdefault("S3_ENDPOINT", "http://minio:9000")
+    os.environ.setdefault("S3_ACCESS_KEY", "minio")
+    os.environ.setdefault("S3_SECRET_KEY", "minio123")
     dag_path = Path("dags") / "breweries_medallion_dag.py"
     spec = importlib.util.spec_from_file_location("breweries_medallion_dag", dag_path)
     module = importlib.util.module_from_spec(spec)

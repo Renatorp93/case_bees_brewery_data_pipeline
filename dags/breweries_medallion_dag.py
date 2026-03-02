@@ -17,12 +17,22 @@ from breweries_pipeline.monitoring.alerts import (
 
 JOBS_PATH = "/opt/airflow/src/breweries_pipeline/jobs"
 
+
+def _required_env(name: str) -> str:
+    """Read a required env var and fail fast when it is missing/empty."""
+
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
 # -----------------------
 # Env / Defaults
 # -----------------------
-S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://minio:9000")
-S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "minio")
-S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "minio123")
+S3_ENDPOINT = _required_env("S3_ENDPOINT")
+S3_ACCESS_KEY = _required_env("S3_ACCESS_KEY")
+S3_SECRET_KEY = _required_env("S3_SECRET_KEY")
 S3_BUCKET = os.getenv("S3_BUCKET", "datalake")
 
 BRONZE_PREFIX = os.getenv("BRONZE_PREFIX", "bronze/breweries")
