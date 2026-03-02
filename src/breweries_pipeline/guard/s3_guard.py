@@ -77,14 +77,24 @@ def rename(spark: SparkSession, src: str, dst: str) -> None:
     if not ok:
         raise RuntimeError(f"Failed to rename {src} -> {dst}")
 
+
+def _required_env(name: str) -> str:
+    """Read a required env var and fail fast when it is missing/empty."""
+
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
 def _s3_client():
     """Build a boto3 S3 client using environment-backed MinIO credentials."""
 
     return boto3.client(
         "s3",
-        endpoint_url=os.getenv("S3_ENDPOINT", "http://minio:9000"),
-        aws_access_key_id=os.getenv("S3_ACCESS_KEY", "minio"),
-        aws_secret_access_key=os.getenv("S3_SECRET_KEY", "minio123"),
+        endpoint_url=_required_env("S3_ENDPOINT"),
+        aws_access_key_id=_required_env("S3_ACCESS_KEY"),
+        aws_secret_access_key=_required_env("S3_SECRET_KEY"),
         config=Config(signature_version="s3v4"),
         region_name="us-east-1",
     )
