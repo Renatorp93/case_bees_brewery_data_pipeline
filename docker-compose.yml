@@ -83,7 +83,17 @@ services:
       BRONZE_PREFIX: bronze/breweries
       SILVER_PREFIX: silver/breweries
       GOLD_PREFIX: gold/breweries
+      QUALITY_PREFIX: ${QUALITY_PREFIX:-monitoring/data_quality}
       SPARK_MASTER: spark://spark-master:7077
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      ALERT_EMAIL_ON_SUCCESS: ${ALERT_EMAIL_ON_SUCCESS:-false}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
@@ -123,7 +133,17 @@ services:
       BRONZE_PREFIX: bronze/breweries
       SILVER_PREFIX: silver/breweries
       GOLD_PREFIX: gold/breweries
+      QUALITY_PREFIX: ${QUALITY_PREFIX:-monitoring/data_quality}
       SPARK_MASTER: spark://spark-master:7077
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      ALERT_EMAIL_ON_SUCCESS: ${ALERT_EMAIL_ON_SUCCESS:-false}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
@@ -207,6 +227,7 @@ services:
     environment:
       PYTHONPATH: /opt/airflow/src
     volumes:
+      - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
       - ./tests:/opt/airflow/tests
       - ./pytest.ini:/opt/airflow/pytest.ini

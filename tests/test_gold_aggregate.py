@@ -6,12 +6,15 @@ from breweries_pipeline.jobs.gold_aggregate import aggregate_gold
 
 @pytest.fixture(scope="session")
 def spark():
-    return (
-        SparkSession.builder
-        .appName("pytest")
-        .master("local[1]")
-        .getOrCreate()
-    )
+    try:
+        return (
+            SparkSession.builder
+            .appName("pytest")
+            .master("local[1]")
+            .getOrCreate()
+        )
+    except Exception as exc:  # pragma: no cover - environment-dependent
+        pytest.skip(f"Spark unavailable in test environment: {exc}")
 
 
 def test_aggregate_gold_counts_distinct_ids(spark):
