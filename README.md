@@ -155,6 +155,27 @@ Observacao operacional:
   - consistencia de `ingestion_run_id` (critico)
   - duplicidade de `id` (warning)
 
+### Decisoes de design e trade-offs
+
+- `S3A` (Spark) + `boto3` (guard):
+  - Pro: separa responsabilidades por runtime (processamento vs validacao de objeto).
+  - Contra: duas formas de acesso ao mesmo storage.
+- `_metadata.json` como commit marker na Bronze:
+  - Pro: criterio simples e deterministico de completude da ingestao.
+  - Contra: depende de disciplina de escrita (manifesto sempre por ultimo).
+- Data quality como etapa dedicada (`dq_silver`) antes da Gold:
+  - Pro: fail-fast e evidencia formal de qualidade por `run_id`.
+  - Contra: aumenta o tempo total da DAG.
+- `duplicate_id` como warning (nao critico):
+  - Pro: evita bloquear o pipeline por ruido eventual da origem.
+  - Contra: requer acompanhamento operacional para tratar recorrencia.
+- Alertas SMTP via callbacks do Airflow:
+  - Pro: implementacao simples e sem ferramenta externa obrigatoria.
+  - Contra: depende de credenciais SMTP e disponibilidade do servidor de e-mail.
+- `max_active_runs=1`:
+  - Pro: execucao mais previsivel em demonstracao e menor risco de concorrencia acidental.
+  - Contra: reduz paralelismo quando ha demanda por multiplas runs simultaneas.
+
 ### Testes
 
 Todos os testes:
@@ -339,6 +360,27 @@ Operational note:
   - null `id` (critical)
   - `ingestion_run_id` consistency (critical)
   - duplicate `id` (warning)
+
+### Design Choices and Trade-offs
+
+- `S3A` (Spark) + `boto3` (guard):
+  - Pro: clear runtime separation (processing vs object validation).
+  - Con: two access patterns to the same storage.
+- `_metadata.json` as Bronze commit marker:
+  - Pro: simple and deterministic ingestion-complete signal.
+  - Con: requires strict write order discipline (manifest last).
+- Dedicated data quality step (`dq_silver`) before Gold:
+  - Pro: fail-fast behavior and formal quality evidence per `run_id`.
+  - Con: increases total DAG execution time.
+- `duplicate_id` as warning (non-critical):
+  - Pro: avoids blocking on occasional upstream noise.
+  - Con: needs operational follow-up when recurring.
+- SMTP alerts via Airflow callbacks:
+  - Pro: simple implementation without mandatory external tooling.
+  - Con: dependent on SMTP credentials and server availability.
+- `max_active_runs=1`:
+  - Pro: predictable execution in demos and lower accidental concurrency risk.
+  - Con: lower throughput when multiple concurrent runs are needed.
 
 ### Tests
 
